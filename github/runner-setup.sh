@@ -8,6 +8,34 @@ set -e
 
 echo "🚀 开始安装 Self-Hosted Runner 依赖..."
 
+# ============================================
+# 等待 apt 锁释放的函数
+# ============================================
+wait_for_apt_lock() {
+    local max_wait=300  # 最多等待 300 秒（5分钟）
+    local wait_time=0
+    
+    while fuser /var/lib/apt/lists/lock /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+        if [ $wait_time -eq 0 ]; then
+            echo "⏳ 检测到 apt 被其他进程占用，等待锁释放..."
+        fi
+        
+        if [ $wait_time -ge $max_wait ]; then
+            echo "❌ 等待超时，apt 锁仍被占用"
+            echo "   请手动检查: sudo lsof /var/lib/dpkg/lock-frontend"
+            exit 1
+        fi
+        
+        sleep 5
+        wait_time=$((wait_time + 5))
+        echo "   已等待 ${wait_time}s..."
+    done
+    
+    if [ $wait_time -gt 0 ]; then
+        echo "✅ apt 锁已释放，继续安装..."
+    fi
+}
+
 # 检测操作系统
 if [ -f /etc/os-release ]; then
     . /etc/os-release
@@ -24,9 +52,11 @@ echo "📦 检测到操作系统: $OS"
 # ============================================
 if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
     echo "📦 更新包管理器..."
+    wait_for_apt_lock
     sudo apt-get update
 
     echo "📦 安装基础构建工具..."
+    wait_for_apt_lock
     sudo apt-get install -y \
         make \
         build-essential \
@@ -44,6 +74,7 @@ if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
 
     echo "🐳 安装 Docker..."
     # 移除旧版本
+    wait_for_apt_lock
     sudo apt-get remove -y docker docker-engine docker.io containerd runc 2>/dev/null || true
 
     # 添加 Docker 官方 GPG key
@@ -56,7 +87,9 @@ if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
       "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$OS \
       $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
+    wait_for_apt_lock
     sudo apt-get update
+    wait_for_apt_lock
     sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 # ============================================
