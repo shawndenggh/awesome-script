@@ -5,7 +5,7 @@
 在 runner 机器上执行以下命令，自动安装所有必需工具：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/IOTCloudfire/iot-fire-cloud/develop/github/runner-setup.sh | sudo bash
+curl -fsSL https://github.com/shawndenggh/awesome-script/blob/main/github/runner-setup.sh | sudo bash
 ```
 
 ## 安装后操作
